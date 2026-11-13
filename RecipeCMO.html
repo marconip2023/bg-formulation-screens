@@ -1,0 +1,896 @@
+<!doctype html>
+<html lang="en"><head><style>
+    .sc-placeholder{background:color-mix(in srgb,currentColor 8%,transparent);
+      border:1px solid color-mix(in srgb,currentColor 50%,transparent);
+      border-radius:2px;box-sizing:border-box;overflow:hidden}
+    @keyframes sc-shine{0%{background-position:100% 50%}100%{background-position:0% 50%}}
+    html.sc-dc-streaming .sc-placeholder,
+    html.sc-dc-streaming .sc-interp.sc-missing{position:relative;
+      background:color-mix(in srgb,currentColor 5%,transparent);
+      border-color:transparent}
+    html.sc-dc-streaming .sc-placeholder::before,
+    html.sc-dc-streaming .sc-interp.sc-missing::before{content:'';
+      position:absolute;inset:0;pointer-events:none;
+      background:linear-gradient(90deg,rgba(217,119,87,0) 25%,rgba(247,225,211,.95) 37%,rgba(217,119,87,0) 63%);
+      background-size:400% 100%;animation:sc-shine 1.4s ease infinite}
+    html.sc-dc-streaming .sc-placeholder:nth-child(n+9 of .sc-placeholder)::before,
+    html.sc-dc-streaming .sc-interp.sc-missing:nth-child(n+9 of .sc-interp.sc-missing)::before{animation:none;
+      background:color-mix(in srgb,currentColor 8%,transparent)}
+    .sc-placeholder-error{padding:4px 8px;font:11px/1.4 ui-monospace,monospace;
+      color:color-mix(in srgb,currentColor 70%,transparent);word-break:break-word}
+    .sc-interp.sc-missing{display:inline-block;width:2em;height:1em;overflow:hidden;
+      vertical-align:text-bottom;background:rgba(255,255,255,.3);border:1px solid rgba(0,0,0,.5);
+      border-radius:2px;box-sizing:border-box;color:transparent;
+      user-select:none}
+    .sc-interp.sc-unresolved{font-family:ui-monospace,monospace;font-size:.85em;
+      color:color-mix(in srgb,currentColor 50%,transparent);
+      background:color-mix(in srgb,currentColor 10%,transparent);border-radius:3px;
+      padding:0 3px}
+    .sc-host.sc-has-error{position:relative}
+    .sc-logic-error{position:absolute;top:8px;left:8px;z-index:2147483647;max-width:60ch;
+      padding:6px 10px;background:#b00020;color:#fff;font:12px/1.4 ui-monospace,monospace;
+      border-radius:4px;white-space:pre-wrap;pointer-events:none}
+    /* Mirrors PRINT_BASELINE_CSS in apps/web deck-stage-export.ts — keep both
+       in sync until dc-runtime regains a build step. */
+    @media print {
+      @page { margin: 0.5cm; }
+      figure, table { break-inside: avoid; }
+      #dc-root, #dc-root > .sc-host { height: auto; }
+      *, *::before, *::after {
+        print-color-adjust: exact; -webkit-print-color-adjust: exact;
+        backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+        animation-delay: -99s !important; animation-duration: .001s !important;
+        animation-iteration-count: 1 !important; animation-fill-mode: both !important;
+        animation-play-state: running !important; transition-duration: 0s !important;
+      }
+    }
+  </style>
+<meta charset="utf-8">
+<title>Manufacturing recipe and CMO</title>
+<style>x-dc{display:none!important}</style>
+<style>/* ds/wba/styles.css */
+/* WBA Design System webfonts. Roboto is the brand face across the whole system — product UI
+   and display/spec headers alike. (The source .fig used Bodoni 72 on its own spec
+   boards; that has been retired in favour of Roboto.) */
+@import url("https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Roboto+Mono:wght@500&family=Raleway:wght@500;700&family=Montserrat:wght@500;700&family=Noto+Sans:wght@700&display=swap");
+:root{
+  --font-core:"Roboto",-apple-system,BlinkMacSystemFont,"Segoe UI","Helvetica Neue",Arial,sans-serif;
+  --font-display:"Roboto",-apple-system,BlinkMacSystemFont,"Segoe UI","Helvetica Neue",Arial,sans-serif;
+  --font-mono:"Roboto Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --font-marketing:"Raleway",var(--font-core);
+  --font-marketing-alt:"Montserrat",var(--font-core);
+}
+
+/* Colour tokens transcribed verbatim from the .fig
+   — 2020 Revamp "Color" board (2455:1845) and the 2019 "Color Palatte" board (47:0). */
+:root{
+  /* RH brand */
+  --rh-brand-graphite:#5A585A;
+  --rh-brand-ink:#25282A;
+
+  /* Primary 2 — green (2020 revamp product primary) */
+  --green-900:#064E34;
+  --green-700:#086F4A;
+  --green-500:#0DA16C;
+  --green-200:#B6E3D3;
+  --green-050:#E7F9F2;
+
+  /* Brand blue — WBA #003DA5 (2019 phase-1 primary) */
+  --blue-900:#002563;
+  --blue-800:#003DA5;
+  --blue-700:#1950AE;
+  --blue-400:#668BC9;
+  --blue-200:#B2C5E4;
+  --blue-050:#E5ECF6;
+
+  /* Primary 1 — action blue */
+  --actionblue-900:#003899;
+  --actionblue-700:#005EFF;
+  --actionblue-500:#196EFF;
+  --actionblue-400:#669EFF;
+  --actionblue-200:#B2CFFF;
+  --actionblue-050:#E5EFFF;
+
+  /* Secondary — lime */
+  --lime-700:#8DAA00;
+  --lime-600:#8CA900;
+  --lime-500:#B0D400;
+  --lime-400:#B8D819;
+  --lime-300:#D0E566;
+  --lime-200:#E7F2B2;
+  --lime-100:#F3F9D9;
+  --lime-050:#F7FBE5;
+
+  /* Neutral — text black ramp */
+  --black:#000000;
+  --grey-900:#202020;
+  --grey-800:#404040;
+  --grey-700:#777777;
+  --grey-600:#808080;
+  --grey-500:#979797;
+  --grey-400:#AAAAAA;
+  --grey-300:#BFBFBF;
+  --grey-250:#CCCCCC;
+  --grey-230:#D2D2D2;
+  --grey-220:#D9D9D9;
+  --grey-210:#DADADA;
+  --grey-200:#E6E6E6;
+  --grey-150:#EEEEEE;
+  --grey-100:#F2F2F2;
+  --white:#FFFFFF;
+
+  /* Neutral — text blue / slate ramp */
+  --slate-900:#232B3A;
+  --slate-800:#263238;
+  --slate-700:#3A4861;
+  --slate-600:#4E5A71;
+  --slate-500:#4F4F4F;
+  --slate-400:#8991A0;
+  --slate-300:#C4C8D0;
+  --slate-200:#EBEDEF;
+
+  /* System colours */
+  --red-500:#D42600;
+  --red-050:#F9DFD9;
+  --amber-600:#F9B300;
+  --yellow-500:#FFD12E;
+  --yellow-050:#FFF8E0;
+  --green-system:#1BB135;
+  --purple-500:#6936F8;
+  --purple-050:#F3EFFB;
+
+  /* Surfaces */
+  --bg-app:#F4F6FA;
+  --surface:#FFFFFF;
+
+  /* ── Semantic aliases ── */
+  --primary:var(--green-500);
+  --primary-hover:var(--green-700);
+  --primary-pressed:var(--green-900);
+  --primary-tint:var(--green-050);
+  --primary-1:var(--actionblue-500);
+  --primary-1-hover:var(--actionblue-900);
+  --primary-2:var(--brand);
+  --primary-2-hover:var(--brand-hover);
+  --secondary:var(--lime-500);
+  --secondary-hover:var(--lime-600);
+
+  --text-primary:var(--black);
+  --text-body:var(--grey-900);
+  --text-secondary:var(--grey-700);
+  --text-muted:var(--grey-600);
+  --text-placeholder:var(--grey-300);
+  --text-disabled:var(--grey-250);
+  --text-inverse:var(--white);
+  --text-link:var(--actionblue-500);
+  --text-error:var(--red-500);
+  --text-field-label:var(--slate-900);
+
+  --border:var(--grey-300);
+  --border-strong:var(--grey-400);
+  --border-field:var(--slate-300);
+  --border-table:var(--grey-300);
+  --divider:var(--grey-150);
+
+  --state-disabled-bg:var(--grey-200);
+  --state-error:var(--red-500);
+  --state-warning:var(--yellow-500);
+  --state-success:var(--green-system);
+  --state-info:var(--actionblue-500);
+
+  --toast-bg:var(--slate-700);
+  --tooltip-bg:var(--slate-800);
+
+  --link:var(--actionblue-500);
+  --link-hover:var(--actionblue-900);
+}
+
+/* ── Brand themes ──
+   Two brands share one system. WBA is blue (#003DA5) and is the DEFAULT —
+   every component accent resolves to it. RH is green: set data-brand="rh"
+   on <html> or any subtree to swap the whole accent set back to the 2020 green. */
+:root,[data-brand="wba"]{
+  --brand:var(--blue-800);
+  --brand-hover:var(--blue-900);
+  --brand-pressed:var(--blue-900);
+  --brand-tint:var(--blue-050);
+  --brand-soft:var(--blue-200);
+  --brand-on:var(--white);
+}
+[data-brand="rh"]{
+  --brand:var(--green-500);
+  --brand-hover:var(--green-700);
+  --brand-pressed:var(--green-900);
+  --brand-tint:var(--green-050);
+  --brand-soft:var(--green-200);
+  --brand-on:var(--white);
+}
+/* Component accents follow the active brand. */
+:root,[data-brand]{
+  --accent:var(--brand);
+  --accent-hover:var(--brand-hover);
+  --accent-pressed:var(--brand-pressed);
+  --accent-tint:var(--brand-tint);
+  --accent-soft:var(--brand-soft);
+  --primary:var(--brand);
+  --primary-hover:var(--brand-hover);
+  --primary-pressed:var(--brand-pressed);
+  --primary-tint:var(--brand-tint);
+}
+
+/* Type ramp from the 2019 Style Guide "Typography" board (2:82).
+   Roboto only; every product style is set at line-height 100% with the
+   figure-space letter-spacing the components use (0.03em). */
+:root{
+  --text-display-size:36px;   --text-display-weight:700;  --text-display-lh:1;
+  --text-headline-size:24px;  --text-headline-weight:500; --text-headline-lh:1;
+  --text-title-size:20px;     --text-title-weight:700;    --text-title-lh:1;
+  --text-subtitle-size:16px;  --text-subtitle-weight:700; --text-subtitle-lh:1;
+  --text-body-size:14px;      --text-body-weight:500;     --text-body-lh:1;
+  --text-body-sm-size:12px;   --text-body-sm-weight:500;  --text-body-sm-lh:1;
+  --text-para-size:12px;      --text-para-weight:400;     --text-para-lh:1;
+  --text-caption-size:12px;   --text-caption-weight:400;  --text-caption-lh:16px;
+  --text-micro-size:10px;     --text-micro-weight:400;    --text-micro-lh:1;
+  --text-nano-size:8px;       --text-nano-weight:400;     --text-nano-lh:1;
+
+  /* document / spec faces (Roboto display) used on design-system boards */
+  --text-doc-hero-size:90px;
+  --text-doc-title-size:40px;
+  --text-doc-sub-size:20px;
+
+  --tracking-ui:0.03em;    /* the letter-spacing on nearly every UI label */
+  --tracking-field:0.4px;  /* text-field captions & helper text */
+  --tracking-toast:0.002em;
+}
+
+/* Spacing, radius and sizing observed across the component sheets.
+   The product grid is a 10-column layout on a 1440 / 1920 artboard with a
+   120px outer margin on design-system boards and 30px gutters in product screens. */
+:root{
+  --space-1:4px;  --space-2:5px;  --space-3:6px;  --space-4:8px;
+  --space-5:10px; --space-6:12px; --space-7:14px; --space-8:16px;
+  --space-9:20px; --space-10:24px; --space-11:30px; --space-12:40px;
+  --space-13:50px; --space-14:60px; --space-15:120px;
+
+  --radius-xs:2px;   /* search bar, round box */
+  --radius-sm:3px;   /* image placeholders */
+  --radius-md:4px;   /* buttons, chips, text fields, toasts */
+  --radius-lg:8px;
+  --radius-pill:1000px;
+
+  --control-h-s:20px;   /* chip S */
+  --control-h-m:24px;   /* chip M / icon 24 */
+  --control-h-field:40px;
+  --control-h-btn:36px;
+  --control-h-btn-s:28px;
+  --row-h-header:40px;
+  --row-h-body:60px;
+  --menu-item-h:44px;
+  --appbar-h:90px;
+  --stepper-h:76px;
+  --progress-h:7px;
+
+  --icon-sm:12px; --icon-md:20px; --icon-lg:24px; --icon-xl:48px;
+
+  --grid-columns:10; /* @kind other */
+  --grid-page:1440px;
+  --grid-page-wide:1920px;
+  --grid-margin:120px;
+  --grid-gutter:30px;
+}
+
+/* Shadows transcribed from the component sheets. */
+:root{
+  --shadow-btn:0px 1px 4px 0px rgba(0,0,0,0.12);
+  --shadow-btn-hover:0px 4px 6px 0px rgba(0,0,0,0.2);
+  --shadow-control:0px 4px 8px 0px rgba(48,79,254,0.24);
+  --shadow-card:0px 2px 4px 0px rgba(0,0,0,0.12);
+  --shadow-menu:0px 2px 4px 1px rgba(165,178,200,0.1),0px 3px 8px 1px rgba(165,178,200,0.3);
+  --shadow-toast:0px 2px 4px 1px rgba(165,178,200,0.1),0px 3px 8px 1px rgba(165,178,200,0.3);
+  --shadow-swatch:0px 10px 10px 0px rgba(0,0,0,0.25);
+  --shadow-dialog:0px 10px 20px 0px rgba(0,0,0,0.25);
+
+  --border-hairline:0.5px;   /* table grid lines */
+  --border-thin:1px;         /* field outlines */
+  --border-thick:2px;        /* active tab underline */
+
+  --motion-fast:120ms; /* @kind other */
+  --motion-base:200ms; /* @kind other */
+  --motion-ease:cubic-bezier(0.4,0.0,0.2,1); /* @kind other */
+}
+
+:root{color-scheme:light}
+body{font-family:var(--font-core);color:var(--text-body);background:var(--bg-app)}
+a{color:var(--link);text-decoration:none}
+a:hover{color:var(--link-hover);text-decoration:underline}
+
+
+</style>
+<style>/* ds/wba/tokens/fonts.css */
+/* WBA Design System webfonts. Roboto is the brand face across the whole system — product UI
+   and display/spec headers alike. (The source .fig used Bodoni 72 on its own spec
+   boards; that has been retired in favour of Roboto.) */
+@import url("https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Roboto+Mono:wght@500&family=Raleway:wght@500;700&family=Montserrat:wght@500;700&family=Noto+Sans:wght@700&display=swap");
+:root{
+  --font-core:"Roboto",-apple-system,BlinkMacSystemFont,"Segoe UI","Helvetica Neue",Arial,sans-serif;
+  --font-display:"Roboto",-apple-system,BlinkMacSystemFont,"Segoe UI","Helvetica Neue",Arial,sans-serif;
+  --font-mono:"Roboto Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --font-marketing:"Raleway",var(--font-core);
+  --font-marketing-alt:"Montserrat",var(--font-core);
+}
+
+</style>
+<style>/* ds/wba/tokens/colors.css */
+/* Colour tokens transcribed verbatim from the .fig
+   — 2020 Revamp "Color" board (2455:1845) and the 2019 "Color Palatte" board (47:0). */
+:root{
+  /* RH brand */
+  --rh-brand-graphite:#5A585A;
+  --rh-brand-ink:#25282A;
+
+  /* Primary 2 — green (2020 revamp product primary) */
+  --green-900:#064E34;
+  --green-700:#086F4A;
+  --green-500:#0DA16C;
+  --green-200:#B6E3D3;
+  --green-050:#E7F9F2;
+
+  /* Brand blue — WBA #003DA5 (2019 phase-1 primary) */
+  --blue-900:#002563;
+  --blue-800:#003DA5;
+  --blue-700:#1950AE;
+  --blue-400:#668BC9;
+  --blue-200:#B2C5E4;
+  --blue-050:#E5ECF6;
+
+  /* Primary 1 — action blue */
+  --actionblue-900:#003899;
+  --actionblue-700:#005EFF;
+  --actionblue-500:#196EFF;
+  --actionblue-400:#669EFF;
+  --actionblue-200:#B2CFFF;
+  --actionblue-050:#E5EFFF;
+
+  /* Secondary — lime */
+  --lime-700:#8DAA00;
+  --lime-600:#8CA900;
+  --lime-500:#B0D400;
+  --lime-400:#B8D819;
+  --lime-300:#D0E566;
+  --lime-200:#E7F2B2;
+  --lime-100:#F3F9D9;
+  --lime-050:#F7FBE5;
+
+  /* Neutral — text black ramp */
+  --black:#000000;
+  --grey-900:#202020;
+  --grey-800:#404040;
+  --grey-700:#777777;
+  --grey-600:#808080;
+  --grey-500:#979797;
+  --grey-400:#AAAAAA;
+  --grey-300:#BFBFBF;
+  --grey-250:#CCCCCC;
+  --grey-230:#D2D2D2;
+  --grey-220:#D9D9D9;
+  --grey-210:#DADADA;
+  --grey-200:#E6E6E6;
+  --grey-150:#EEEEEE;
+  --grey-100:#F2F2F2;
+  --white:#FFFFFF;
+
+  /* Neutral — text blue / slate ramp */
+  --slate-900:#232B3A;
+  --slate-800:#263238;
+  --slate-700:#3A4861;
+  --slate-600:#4E5A71;
+  --slate-500:#4F4F4F;
+  --slate-400:#8991A0;
+  --slate-300:#C4C8D0;
+  --slate-200:#EBEDEF;
+
+  /* System colours */
+  --red-500:#D42600;
+  --red-050:#F9DFD9;
+  --amber-600:#F9B300;
+  --yellow-500:#FFD12E;
+  --yellow-050:#FFF8E0;
+  --green-system:#1BB135;
+  --purple-500:#6936F8;
+  --purple-050:#F3EFFB;
+
+  /* Surfaces */
+  --bg-app:#F4F6FA;
+  --surface:#FFFFFF;
+
+  /* ── Semantic aliases ── */
+  --primary:var(--green-500);
+  --primary-hover:var(--green-700);
+  --primary-pressed:var(--green-900);
+  --primary-tint:var(--green-050);
+  --primary-1:var(--actionblue-500);
+  --primary-1-hover:var(--actionblue-900);
+  --primary-2:var(--brand);
+  --primary-2-hover:var(--brand-hover);
+  --secondary:var(--lime-500);
+  --secondary-hover:var(--lime-600);
+
+  --text-primary:var(--black);
+  --text-body:var(--grey-900);
+  --text-secondary:var(--grey-700);
+  --text-muted:var(--grey-600);
+  --text-placeholder:var(--grey-300);
+  --text-disabled:var(--grey-250);
+  --text-inverse:var(--white);
+  --text-link:var(--actionblue-500);
+  --text-error:var(--red-500);
+  --text-field-label:var(--slate-900);
+
+  --border:var(--grey-300);
+  --border-strong:var(--grey-400);
+  --border-field:var(--slate-300);
+  --border-table:var(--grey-300);
+  --divider:var(--grey-150);
+
+  --state-disabled-bg:var(--grey-200);
+  --state-error:var(--red-500);
+  --state-warning:var(--yellow-500);
+  --state-success:var(--green-system);
+  --state-info:var(--actionblue-500);
+
+  --toast-bg:var(--slate-700);
+  --tooltip-bg:var(--slate-800);
+
+  --link:var(--actionblue-500);
+  --link-hover:var(--actionblue-900);
+}
+
+/* ── Brand themes ──
+   Two brands share one system. WBA is blue (#003DA5) and is the DEFAULT —
+   every component accent resolves to it. RH is green: set data-brand="rh"
+   on <html> or any subtree to swap the whole accent set back to the 2020 green. */
+:root,[data-brand="wba"]{
+  --brand:var(--blue-800);
+  --brand-hover:var(--blue-900);
+  --brand-pressed:var(--blue-900);
+  --brand-tint:var(--blue-050);
+  --brand-soft:var(--blue-200);
+  --brand-on:var(--white);
+}
+[data-brand="rh"]{
+  --brand:var(--green-500);
+  --brand-hover:var(--green-700);
+  --brand-pressed:var(--green-900);
+  --brand-tint:var(--green-050);
+  --brand-soft:var(--green-200);
+  --brand-on:var(--white);
+}
+/* Component accents follow the active brand. */
+:root,[data-brand]{
+  --accent:var(--brand);
+  --accent-hover:var(--brand-hover);
+  --accent-pressed:var(--brand-pressed);
+  --accent-tint:var(--brand-tint);
+  --accent-soft:var(--brand-soft);
+  --primary:var(--brand);
+  --primary-hover:var(--brand-hover);
+  --primary-pressed:var(--brand-pressed);
+  --primary-tint:var(--brand-tint);
+}
+
+</style>
+<style>/* ds/wba/tokens/typography.css */
+/* Type ramp from the 2019 Style Guide "Typography" board (2:82).
+   Roboto only; every product style is set at line-height 100% with the
+   figure-space letter-spacing the components use (0.03em). */
+:root{
+  --text-display-size:36px;   --text-display-weight:700;  --text-display-lh:1;
+  --text-headline-size:24px;  --text-headline-weight:500; --text-headline-lh:1;
+  --text-title-size:20px;     --text-title-weight:700;    --text-title-lh:1;
+  --text-subtitle-size:16px;  --text-subtitle-weight:700; --text-subtitle-lh:1;
+  --text-body-size:14px;      --text-body-weight:500;     --text-body-lh:1;
+  --text-body-sm-size:12px;   --text-body-sm-weight:500;  --text-body-sm-lh:1;
+  --text-para-size:12px;      --text-para-weight:400;     --text-para-lh:1;
+  --text-caption-size:12px;   --text-caption-weight:400;  --text-caption-lh:16px;
+  --text-micro-size:10px;     --text-micro-weight:400;    --text-micro-lh:1;
+  --text-nano-size:8px;       --text-nano-weight:400;     --text-nano-lh:1;
+
+  /* document / spec faces (Roboto display) used on design-system boards */
+  --text-doc-hero-size:90px;
+  --text-doc-title-size:40px;
+  --text-doc-sub-size:20px;
+
+  --tracking-ui:0.03em;    /* the letter-spacing on nearly every UI label */
+  --tracking-field:0.4px;  /* text-field captions & helper text */
+  --tracking-toast:0.002em;
+}
+
+</style>
+<style>/* ds/wba/tokens/space.css */
+/* Spacing, radius and sizing observed across the component sheets.
+   The product grid is a 10-column layout on a 1440 / 1920 artboard with a
+   120px outer margin on design-system boards and 30px gutters in product screens. */
+:root{
+  --space-1:4px;  --space-2:5px;  --space-3:6px;  --space-4:8px;
+  --space-5:10px; --space-6:12px; --space-7:14px; --space-8:16px;
+  --space-9:20px; --space-10:24px; --space-11:30px; --space-12:40px;
+  --space-13:50px; --space-14:60px; --space-15:120px;
+
+  --radius-xs:2px;   /* search bar, round box */
+  --radius-sm:3px;   /* image placeholders */
+  --radius-md:4px;   /* buttons, chips, text fields, toasts */
+  --radius-lg:8px;
+  --radius-pill:1000px;
+
+  --control-h-s:20px;   /* chip S */
+  --control-h-m:24px;   /* chip M / icon 24 */
+  --control-h-field:40px;
+  --control-h-btn:36px;
+  --control-h-btn-s:28px;
+  --row-h-header:40px;
+  --row-h-body:60px;
+  --menu-item-h:44px;
+  --appbar-h:90px;
+  --stepper-h:76px;
+  --progress-h:7px;
+
+  --icon-sm:12px; --icon-md:20px; --icon-lg:24px; --icon-xl:48px;
+
+  --grid-columns:10; /* @kind other */
+  --grid-page:1440px;
+  --grid-page-wide:1920px;
+  --grid-margin:120px;
+  --grid-gutter:30px;
+}
+
+</style>
+<style>/* ds/wba/tokens/elevation.css */
+/* Shadows transcribed from the component sheets. */
+:root{
+  --shadow-btn:0px 1px 4px 0px rgba(0,0,0,0.12);
+  --shadow-btn-hover:0px 4px 6px 0px rgba(0,0,0,0.2);
+  --shadow-control:0px 4px 8px 0px rgba(48,79,254,0.24);
+  --shadow-card:0px 2px 4px 0px rgba(0,0,0,0.12);
+  --shadow-menu:0px 2px 4px 1px rgba(165,178,200,0.1),0px 3px 8px 1px rgba(165,178,200,0.3);
+  --shadow-toast:0px 2px 4px 1px rgba(165,178,200,0.1),0px 3px 8px 1px rgba(165,178,200,0.3);
+  --shadow-swatch:0px 10px 10px 0px rgba(0,0,0,0.25);
+  --shadow-dialog:0px 10px 20px 0px rgba(0,0,0,0.25);
+
+  --border-hairline:0.5px;   /* table grid lines */
+  --border-thin:1px;         /* field outlines */
+  --border-thick:2px;        /* active tab underline */
+
+  --motion-fast:120ms; /* @kind other */
+  --motion-base:200ms; /* @kind other */
+  --motion-ease:cubic-bezier(0.4,0.0,0.2,1); /* @kind other */
+}
+
+</style>
+<style>/* ds/wba/tokens/base.css */
+:root{color-scheme:light}
+body{font-family:var(--font-core);color:var(--text-body);background:var(--bg-app)}
+a{color:var(--link);text-decoration:none}
+a:hover{color:var(--link-hover);text-decoration:underline}
+
+</style>
+<style>/* ds/wba/tokens.css */
+/* WBA Design System — generated from tokens.json */
+:root, [data-theme="wba"] {
+  --rh-brand-graphite: #5a585a;
+  --rh-brand-ink: #25282a;
+  --green-900: #064e34;
+  --green-700: #086f4a;
+  --green-500: #0da16c;
+  --green-200: #b6e3d3;
+  --green-050: #e7f9f2;
+  --blue-900: #002563;
+  --blue-800: #003da5;
+  --blue-700: #1950ae;
+  --blue-400: #668bc9;
+  --blue-300: #aec5e9;
+  --blue-200: #b2c5e4;
+  --blue-050: #e5ecf6;
+  --actionblue-900: #003899;
+  --actionblue-700: #005eff;
+  --actionblue-500: #196eff;
+  --actionblue-400: #669eff;
+  --actionblue-200: #b2cfff;
+  --actionblue-050: #e5efff;
+  --lime-700: #8daa00;
+  --lime-600: #8ca900;
+  --lime-500: #b0d400;
+  --lime-400: #b8d819;
+  --lime-300: #d0e566;
+  --lime-200: #e7f2b2;
+  --lime-100: #f3f9d9;
+  --lime-050: #f7fbe5;
+  --black: #000000;
+  --grey-900: #202020;
+  --grey-800: #404040;
+  --grey-700: #777777;
+  --grey-600: #808080;
+  --grey-500: #979797;
+  --grey-400: #aaaaaa;
+  --grey-300: #bfbfbf;
+  --grey-250: #cccccc;
+  --grey-230: #d2d2d2;
+  --grey-220: #d9d9d9;
+  --grey-210: #dadada;
+  --grey-200: #e6e6e6;
+  --grey-150: #eeeeee;
+  --grey-100: #f2f2f2;
+  --white: #ffffff;
+  --slate-900: #232b3a;
+  --slate-800: #263238;
+  --slate-700: #3a4861;
+  --slate-600: #4e5a71;
+  --slate-500: #4f4f4f;
+  --slate-400: #8991a0;
+  --slate-300: #c4c8d0;
+  --slate-200: #ebedef;
+  --red-500: #d42600;
+  --red-050: #f9dfd9;
+  --amber-600: #f9b300;
+  --yellow-500: #ffd12e;
+  --yellow-050: #fff8e0;
+  --green-system: #1bb135;
+  --purple-500: #6936f8;
+  --purple-050: #f3effb;
+  --bg-app: #f4f6fa;
+  --chrome-appbar: #4285f4;
+  --chrome-appbar-active: #1c56c6;
+  --brand: var(--blue-800);
+  --brand-hover: var(--blue-900);
+  --brand-pressed: var(--blue-900);
+  --brand-tint: var(--blue-050);
+  --brand-soft: var(--blue-200);
+  --brand-on: var(--white);
+  --accent: var(--blue-800);
+  --accent-hover: var(--blue-900);
+  --accent-pressed: var(--blue-900);
+  --accent-tint: var(--blue-050);
+  --accent-soft: var(--blue-200);
+  --primary: var(--blue-800);
+  --primary-hover: var(--blue-900);
+  --primary-pressed: var(--blue-900);
+  --primary-tint: var(--blue-050);
+  --primary-1: var(--blue-800);
+  --primary-1-hover: var(--blue-900);
+  --primary-2: var(--actionblue-700);
+  --primary-2-hover: var(--actionblue-900);
+  --secondary: var(--lime-500);
+  --secondary-hover: var(--lime-600);
+  --text-primary: var(--black);
+  --text-body: var(--grey-900);
+  --text-secondary: var(--grey-700);
+  --text-muted: var(--grey-600);
+  --text-placeholder: var(--grey-300);
+  --text-disabled: var(--grey-250);
+  --text-inverse: var(--white);
+  --text-link: var(--actionblue-500);
+  --text-error: var(--red-500);
+  --text-field-label: var(--slate-900);
+  --border: var(--grey-300);
+  --border-strong: var(--grey-400);
+  --border-field: var(--slate-300);
+  --border-table: var(--grey-300);
+  --divider: var(--grey-150);
+  --state-disabled-bg: var(--grey-400);
+  --state-error: var(--red-500);
+  --state-warning: var(--yellow-500);
+  --state-success: var(--green-system);
+  --state-info: var(--actionblue-500);
+  --state-error-tint: var(--red-050);
+  --state-warning-tint: var(--yellow-050);
+  --state-success-tint: var(--green-050);
+  --state-info-tint: var(--actionblue-050);
+  --surface: var(--white);
+  --surface-chip: var(--slate-200);
+  --toast-bg: var(--slate-700);
+  --tooltip-bg: var(--slate-800);
+  --status-tag-bg: var(--blue-300);
+  --link: var(--actionblue-500);
+  --link-hover: var(--actionblue-900);
+  --chrome-appbar-marker: var(--lime-500);
+  --tier-gold-bg: #fff6d6;
+  --tier-gold-fg: #8a6a00;
+  --tier-gold-bd: #e8c84a;
+  --tier-silver-bg: #ebedef;
+  --tier-silver-fg: #4e5a71;
+  --tier-silver-bd: #c4c8d0;
+  --tier-bronze-bg: #f6e7da;
+  --tier-bronze-fg: #8a5326;
+  --tier-bronze-bd: #d8b08c;
+  --tier-na-bg: #f2f2f2;
+  --tier-na-fg: #808080;
+  --tier-na-bd: #e6e6e6;
+  --shadow-btn: 0px 1px 4px 0px rgba(0,0,0,0.12);
+  --shadow-btn-hover: 0px 4px 6px 0px rgba(0,0,0,0.2);
+  --shadow-control: 0px 4px 8px 0px rgba(48,79,254,0.24);
+  --shadow-card: 0px 2px 4px 0px rgba(0,0,0,0.25);
+  --shadow-menu: 0px 2px 10px 0px rgba(35,43,58,0.25);
+  --shadow-toast: 0px 2px 10px 0px rgba(35,43,58,0.25);
+  --shadow-tooltip: 0px 4px 8px 0px rgba(84,110,122,0.24);
+  --shadow-dialog: 0px 4px 15px 0px rgba(0,0,0,0.25);
+  --shadow-swatch: 0px 10px 10px 0px rgba(0,0,0,0.25);
+}
+[data-theme="rh"] {
+  --brand: var(--green-500);
+  --brand-hover: var(--green-700);
+  --brand-pressed: var(--green-900);
+  --brand-tint: var(--green-050);
+  --brand-soft: var(--green-200);
+  --brand-on: var(--white);
+  --accent: var(--green-500);
+  --accent-hover: var(--green-700);
+  --accent-pressed: var(--green-900);
+  --accent-tint: var(--green-050);
+  --accent-soft: var(--green-200);
+  --primary: var(--green-500);
+  --primary-hover: var(--green-700);
+  --primary-pressed: var(--green-900);
+  --primary-tint: var(--green-050);
+  --primary-1: var(--blue-800);
+  --primary-1-hover: var(--blue-900);
+  --primary-2: var(--actionblue-700);
+  --primary-2-hover: var(--actionblue-900);
+  --secondary: var(--lime-500);
+  --secondary-hover: var(--lime-600);
+  --text-primary: var(--black);
+  --text-body: var(--grey-900);
+  --text-secondary: var(--grey-700);
+  --text-muted: var(--grey-600);
+  --text-placeholder: var(--grey-300);
+  --text-disabled: var(--grey-250);
+  --text-inverse: var(--white);
+  --text-link: var(--actionblue-500);
+  --text-error: var(--red-500);
+  --text-field-label: var(--slate-900);
+  --border: var(--grey-300);
+  --border-strong: var(--grey-400);
+  --border-field: var(--slate-300);
+  --border-table: var(--grey-300);
+  --divider: var(--grey-150);
+  --state-disabled-bg: var(--grey-400);
+  --state-error: var(--red-500);
+  --state-warning: var(--yellow-500);
+  --state-success: var(--green-system);
+  --state-info: var(--actionblue-500);
+  --state-error-tint: var(--red-050);
+  --state-warning-tint: var(--yellow-050);
+  --state-success-tint: var(--green-050);
+  --state-info-tint: var(--actionblue-050);
+  --surface: var(--white);
+  --surface-chip: var(--slate-200);
+  --toast-bg: var(--slate-700);
+  --tooltip-bg: var(--slate-800);
+  --status-tag-bg: var(--blue-300);
+  --link: var(--actionblue-500);
+  --link-hover: var(--actionblue-900);
+  --chrome-appbar-marker: var(--lime-500);
+}
+:root {
+  --space-5: 5px;
+  --space-10: 10px;
+  --space-20: 20px;
+  --space-30: 30px;
+  --space-40: 40px;
+  --space-50: 50px;
+  --space-60: 60px;
+  --space-80: 80px;
+  --space-100: 100px;
+  --space-120: 120px;
+  --space-1: 4px;
+  --space-2: 5px;
+  --radius-xs: 2px;
+  --radius-sm: 3px;
+  --radius-md: 4px;
+  --radius-lg: 8px;
+  --radius-pill: 1000px;
+  --control-h-s: 20px;
+  --control-h-m: 24px;
+  --control-h-field: 40px;
+  --control-h-btn: 36px;
+  --control-h-btn-s: 28px;
+  --control-h-btn-icon: 44px;
+  --control-btn-min-w: 87px;
+  --control-selection: 24px;
+  --control-selection-box: 18px;
+  --control-toggle-w: 40px;
+  --control-fab-lg: 56px;
+  --control-fab-sm: 40px;
+  --row-h-header: 40px;
+  --row-h-body: 60px;
+  --menu-item-h: 44px;
+  --appbar-h: 90px;
+  --appbar-shipped: 46px;
+  --stepper-h: 76px;
+  --progress-h: 7px;
+  --sidenav-w: 270px;
+  --icon-sm: 12px;
+  --icon-md: 20px;
+  --icon-lg: 24px;
+  --icon-xl: 48px;
+  --grid-columns: 10;
+  --grid-page: 1440px;
+  --grid-page-wide: 1920px;
+  --grid-margin: 120px;
+  --grid-gutter: 30px;
+  --border-hairline: 0.5px;
+  --border-thin: 1px;
+  --border-thick: 2px;
+  --tracking-ui: 0.03em;
+  --tracking-field: 0.4px;
+  --tracking-toast: 0.002em;
+  --font-core: "Roboto", -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-display: "Roboto", -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "Roboto Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-marketing: "Raleway", "Roboto", -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-marketing-alt: "Montserrat", "Roboto", -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+}
+.display { font-family: var(--font-core); font-size: 36px; line-height: 1; font-weight: 700; letter-spacing: 0.03em; }
+.headline { font-family: var(--font-core); font-size: 24px; line-height: 1; font-weight: 500; letter-spacing: 0.03em; }
+.title { font-family: var(--font-core); font-size: 20px; line-height: 1; font-weight: 700; letter-spacing: 0.03em; }
+.subtitle { font-family: var(--font-core); font-size: 16px; line-height: 1; font-weight: 700; letter-spacing: 0.03em; }
+.body { font-family: var(--font-core); font-size: 14px; line-height: 1; font-weight: 500; letter-spacing: 0.03em; }
+.body-sm { font-family: var(--font-core); font-size: 12px; line-height: 1; font-weight: 500; letter-spacing: 0.03em; }
+.para { font-family: var(--font-core); font-size: 12px; line-height: 1; font-weight: 400; letter-spacing: 0.4px; }
+.caption { font-family: var(--font-core); font-size: 12px; line-height: 16px; font-weight: 400; letter-spacing: 0.4px; }
+.micro { font-family: var(--font-core); font-size: 10px; line-height: 1; font-weight: 400; letter-spacing: 0px; }
+.nano { font-family: var(--font-core); font-size: 8px; line-height: 1; font-weight: 400; letter-spacing: 0px; }
+.button { font-family: var(--font-core); font-size: 14px; line-height: 1; font-weight: 500; letter-spacing: 0.03em; }
+.button-sm { font-family: var(--font-core); font-size: 12px; line-height: 1; font-weight: 500; letter-spacing: 0.03em; }
+.chip { font-family: var(--font-core); font-size: 10px; line-height: 1.2; font-weight: 500; letter-spacing: 0.3px; }
+.toast { font-family: var(--font-core); font-size: 12px; line-height: 1; font-weight: 500; letter-spacing: 0.002em; }
+.nav { font-family: var(--font-core); font-size: 12px; line-height: 1; font-weight: 500; letter-spacing: 0.72px; }
+.doc-hero { font-family: var(--font-display); font-size: 90px; line-height: 1; font-weight: 700; letter-spacing: 0px; }
+.doc-title { font-family: var(--font-display); font-size: 40px; line-height: 1; font-weight: 700; letter-spacing: 0px; }
+.doc-sub { font-family: var(--font-display); font-size: 20px; line-height: 1; font-weight: 500; letter-spacing: 0.03em; }
+
+</style>
+
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&amp;family=Roboto+Mono:wght@500&amp;display=swap" data-dc-tpl="1"><style data-dc-tpl="2">
+body{margin:0}
+a{color:#196EFF}a:hover{color:#003899}
+.mt{display:inline-flex;align-items:center;justify-content:center;height:56px;padding:0 28px;font-size:14px;font-weight:500;color:#808080;text-decoration:none;border-bottom:3px solid transparent;white-space:nowrap}
+.mt:hover{color:#196EFF}.mt.on{color:#196EFF;border-bottom-color:#196EFF}
+.card{box-shadow:0 1px 4px rgba(0,0,0,0.12);background:#FFFFFF;padding:22px 26px;display:flex;flex-direction:column;gap:14px}
+.card h2{margin:0;font-size:18px;font-weight:500}
+.card h3{margin:0;font-size:14px;font-weight:500}
+.note{font-size:12.5px;color:#777777;line-height:1.5;margin:0}
+.tbl{width:100%;border-collapse:collapse}
+.tbl th{font-size:12.5px;font-weight:500;color:#404040;text-align:left;padding:10px 12px;background:#F4F6FA;border:1px solid #BFBFBF;white-space:nowrap}
+.tbl td{font-size:13px;padding:10px 12px;border:1px solid #BFBFBF;vertical-align:middle;line-height:1.4}
+.kt{width:100%;border-collapse:collapse}
+.kt td{border:1px solid #BFBFBF;padding:11px 16px;font-size:13.5px;vertical-align:middle;line-height:1.45}
+.kt td:first-child{width:34%;color:#202020}
+.st{display:inline-flex;align-items:center;gap:6px;font-size:13px;white-space:nowrap}
+.dot{width:9px;height:9px;border-radius:50%;flex:none;display:inline-block}
+.g{background:#1BB135}.b{background:#196EFF}.y{background:#F2B600}.r{background:#D42600}.n{background:#BFBFBF}
+.btn{display:inline-flex;align-items:center;justify-content:center;height:40px;padding:0 20px;border-radius:4px;font-family:inherit;font-size:14px;font-weight:500;letter-spacing:0.04em;text-transform:uppercase;text-decoration:none;cursor:pointer;white-space:nowrap;box-sizing:border-box}
+.btn.p{background:var(--primary-1);color:#FFFFFF;border:0;box-shadow:0 2px 4px rgba(0,0,0,0.2)}.btn.p:hover{background:var(--primary-1-hover);color:#FFFFFF}
+.btn.o{background:#FFFFFF;color:var(--primary-1);border:1px solid var(--primary-1)}.btn.o:hover{background:var(--accent-tint);color:var(--primary-1)}
+.kpi{box-shadow:0 1px 4px rgba(0,0,0,0.12);background:#FFFFFF;padding:16px 18px;display:flex;flex-direction:column;gap:6px}
+.kpi b{font-size:26px;font-weight:500}
+.kpi span{font-size:12.5px;color:#777777}
+.tag{display:inline-block;padding:1px 7px;border-radius:9px;font-size:11px;font-weight:500;background:var(--accent-tint);color:var(--primary-1)}
+
+</style><style>/* WBA DS alignment layer (Figma library wins): Primary 1 navy, radius 2 on controls, card shadow */
+a.nb,.btn{border-radius:var(--radius-xs)!important}
+a.nb.c,.btn.p{background:var(--primary-1)!important;color:var(--text-inverse)!important;border:0!important;box-shadow:var(--shadow-btn)!important}
+a.nb.c:hover,.btn.p:hover{background:var(--primary-1-hover)!important;box-shadow:var(--shadow-btn-hover)!important}
+a.nb.o,.btn.o{background:var(--surface)!important;color:var(--primary-1)!important;border:1px solid var(--primary-1)!important}
+a.nb.o:hover,.btn.o:hover,a.nb.t:hover{background:var(--accent-tint)!important}
+a.nb.t{color:var(--primary-1)!important}
+.btn{height:var(--control-h-btn)!important}
+.card,.kpi{box-shadow:var(--shadow-card)!important;border-radius:var(--radius-md)}
+.tag{border-radius:var(--radius-xs)!important;background:var(--accent-tint)!important;color:var(--primary-1)!important}
+</style><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&amp;display=swap" data-dc-tpl="1"><style data-dc-tpl="2">
+body{margin:0}
+</style></head>
+<body>
+<div id="dc-root"><div class="sc-host" data-sc-name="RecipeCMO"><div data-dc-tpl="4" style="font-family: Roboto, var(--font-core), sans-serif; background: var(--bg-app); min-height: 1500px; color: rgb(32, 32, 32);"><div class="sc-host" data-sc-name="TopNav" data-dc-tpl="5"><nav data-dc-tpl="4" aria-label="Main" style="height: 46px; background: rgb(66, 133, 244); display: flex; align-items: stretch; color: rgb(255, 255, 255); font-family: var(--font-core); overflow-x: auto;"><a data-dc-tpl="5" href="Start.html" aria-label="ICW home" style="width: 220px; flex: 0 0 auto; padding-left: 20px; display: flex; align-items: center; text-decoration: none;"><img data-dc-tpl="6" src="data:image/png;base64,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" alt="icw" style="width: 41px; height: auto;"></a><a data-dc-tpl="11" href="ConceptList.html" style="width: 136px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 500; letter-spacing: 0.03em; color: rgb(255, 255, 255); text-decoration: none;"><span class="sc-interp">CONCEPT BRIEF</span></a><a data-dc-tpl="11" href="ItemPLM.html" style="width: 136px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 500; letter-spacing: 0.03em; color: rgb(255, 255, 255); text-decoration: none;"><span class="sc-interp">ITEM LIST</span></a><a data-dc-tpl="9" href="FormulationLibrary.html" style="width: 136px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 500; letter-spacing: 0.03em; color: rgb(255, 255, 255); text-decoration: none; background: rgb(28, 86, 198); box-shadow: rgb(176, 212, 0) 0px -3px 0px inset;"><span class="sc-interp">FORMULATION</span></a><a data-dc-tpl="11" href="Main.html" style="width: 136px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 500; letter-spacing: 0.03em; color: rgb(255, 255, 255); text-decoration: none;"><span class="sc-interp">SUBSTANCE LIBRARY</span></a><a data-dc-tpl="11" href="MaterialLibrary.html" style="width: 136px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 500; letter-spacing: 0.03em; color: rgb(255, 255, 255); text-decoration: none;"><span class="sc-interp">MATERIAL LIBRARY</span></a><a data-dc-tpl="11" href="ClaimsLibrary.html" style="width: 136px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 500; letter-spacing: 0.03em; color: rgb(255, 255, 255); text-decoration: none;"><span class="sc-interp">CLAIMS</span></a><div data-dc-tpl="12" style="margin-left: auto; display: flex; align-items: center; gap: 20px; padding-right: 16px; flex: 0 0 auto;"><span data-dc-tpl="13" style="border: 1px solid rgba(255, 255, 255, 0.6); border-radius: 12px; padding: 3px 10px; font-size: 10px; letter-spacing: 0.04em; white-space: nowrap;"><span class="sc-interp">TBG · R&amp;D</span></span><a data-dc-tpl="15" href="SupplierRequest.html" style="font-size: 11px; font-weight: 500; letter-spacing: 0.03em; white-space: nowrap; color: rgb(255, 255, 255); text-decoration: none;">+ CREATE PROJECT</a><button data-dc-tpl="16" type="button" aria-label="Notifications" style="background: none; border: 0px; padding: 0px; color: rgb(255, 255, 255); display: flex;"><svg data-dc-tpl="17" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="18" d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"></path><path data-dc-tpl="19" d="M13.7 21a2 2 0 0 1-3.4 0"></path></svg></button><span data-dc-tpl="20" style="width: 1px; height: 30px; background: rgba(255, 255, 255, 0.5);"></span><span data-dc-tpl="21" style="width: 24px; height: 24px; border-radius: 50%; background: rgb(255, 255, 255); color: rgb(28, 86, 198); font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center;"><span class="sc-interp">S</span></span></div></nav></div><header data-dc-tpl="6" style="display: flex; align-items: center; gap: 24px; padding: 24px 24px 20px; border-bottom: 1px solid rgb(218, 218, 218); flex-wrap: wrap;"><a data-dc-tpl="7" href="FormulationRecord.html" aria-label="Back" style="color: rgb(85, 85, 85); display: flex;"><svg data-dc-tpl="8" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-dc-tpl="9" d="M19 12H5M12 19l-7-7 7-7"></path></svg></a><div data-dc-tpl="10" style="flex: 1 1 600px; min-width: 0px; display: flex; flex-direction: column; gap: 4px;"><div data-dc-tpl="11" style="font-size: 22px; font-weight: 500;"><span data-dc-tpl="12" style="color: rgb(158, 158, 158);">Recipe /</span> RCP-000231-01 • NIGHT REPAIR CREAM</div><div data-dc-tpl="13" style="font-size: 13px; color: rgb(85, 85, 85);">Formula: <span data-dc-tpl="14" style="color: rgb(32, 32, 32);"><a data-dc-tpl="15" href="FormulationRecord.html">FML-000231 Rev 2</a></span>  |  Route: <span data-dc-tpl="16" style="color: rgb(32, 32, 32);">Internal (No7 lab)</span>  |  CMO: <span data-dc-tpl="17" style="color: rgb(32, 32, 32);">Northfield Contract Manufacturing</span></div><div data-dc-tpl="18" style="font-size: 13px; color: rgb(85, 85, 85);">Status: <span data-dc-tpl="19" style="color: rgb(32, 32, 32);">Pilot passed, awaiting validation</span>  |  Capability 1.4 Recipe &amp; CMO</div></div><div data-dc-tpl="20" style="display: flex; gap: 10px;"><span data-dc-tpl="21" class="btn o">Share with CMO</span><span data-dc-tpl="22" class="btn p">Approve recipe</span></div></header><main data-dc-tpl="23" style="padding: 20px 24px 48px; display: flex; flex-direction: column; gap: 20px;"><div data-dc-tpl="24" style="display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start;"><div data-dc-tpl="25" style="flex: 999 1 640px; min-width: 0px; display: flex; flex-direction: column; gap: 20px;"><section data-dc-tpl="26" class="card"><div data-dc-tpl="27" style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;"><h2 data-dc-tpl="28" style="flex-grow: 1;">Manufacturing recipe · RCP-000231-01 · batch 500 kg</h2></div><p data-dc-tpl="29" class="note">Scaled from the signed-off formula. The CMO sees only this recipe, not the formula costs or other products.</p><div data-dc-tpl="30" style="overflow-x: auto;"><table data-dc-tpl="31" class="tbl"><thead data-dc-tpl="32"><tr data-dc-tpl="33"><th data-dc-tpl="34">Phase</th><th data-dc-tpl="35">Material (trade name)</th><th data-dc-tpl="36">INCI</th><th data-dc-tpl="37">% w/w</th><th data-dc-tpl="38">kg per batch</th><th data-dc-tpl="39">Step</th></tr></thead><tbody data-dc-tpl="40"><tr data-dc-tpl="41"><td data-dc-tpl="42">A</td><td data-dc-tpl="43">Purified water</td><td data-dc-tpl="44">Aqua</td><td data-dc-tpl="45">69.95</td><td data-dc-tpl="46">349.75</td><td data-dc-tpl="47">1</td></tr><tr data-dc-tpl="48"><td data-dc-tpl="49">A</td><td data-dc-tpl="50">Glycerin 99.5%</td><td data-dc-tpl="51">Glycerin</td><td data-dc-tpl="52">5.00</td><td data-dc-tpl="53">25.00</td><td data-dc-tpl="54">1</td></tr><tr data-dc-tpl="55"><td data-dc-tpl="56">A</td><td data-dc-tpl="57">Niacinamide PC</td><td data-dc-tpl="58">Niacinamide</td><td data-dc-tpl="59">4.00</td><td data-dc-tpl="60">20.00</td><td data-dc-tpl="61">1</td></tr><tr data-dc-tpl="62"><td data-dc-tpl="63">B</td><td data-dc-tpl="64">Myritol 318</td><td data-dc-tpl="65">Caprylic/Capric Triglyceride</td><td data-dc-tpl="66">8.00</td><td data-dc-tpl="67">40.00</td><td data-dc-tpl="68">2</td></tr><tr data-dc-tpl="69"><td data-dc-tpl="70">B</td><td data-dc-tpl="71">Lanette O</td><td data-dc-tpl="72">Cetearyl Alcohol</td><td data-dc-tpl="73">4.00</td><td data-dc-tpl="74">20.00</td><td data-dc-tpl="75">2</td></tr><tr data-dc-tpl="76"><td data-dc-tpl="77">C</td><td data-dc-tpl="78">Retinol 10S</td><td data-dc-tpl="79">Retinol</td><td data-dc-tpl="80">0.30</td><td data-dc-tpl="81">1.50</td><td data-dc-tpl="82">4</td></tr><tr data-dc-tpl="83"><td data-dc-tpl="84">C</td><td data-dc-tpl="85">Euxyl PE 9010</td><td data-dc-tpl="86">Phenoxyethanol (and) Ethylhexylglycerin</td><td data-dc-tpl="87">1.40</td><td data-dc-tpl="88">7.00</td><td data-dc-tpl="89">4</td></tr><tr data-dc-tpl="90"><td data-dc-tpl="91"></td><td data-dc-tpl="92">+ 8 more materials</td><td data-dc-tpl="93"></td><td data-dc-tpl="94">7.35</td><td data-dc-tpl="95">36.75</td><td data-dc-tpl="96"></td></tr></tbody></table></div></section><section data-dc-tpl="97" class="card"><div data-dc-tpl="98" style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;"><h2 data-dc-tpl="99" style="flex-grow: 1;">Process steps</h2></div><div data-dc-tpl="100" style="overflow-x: auto;"><table data-dc-tpl="101" class="tbl"><thead data-dc-tpl="102"><tr data-dc-tpl="103"><th data-dc-tpl="104">Step</th><th data-dc-tpl="105">Instruction</th><th data-dc-tpl="106">Critical parameter</th><th data-dc-tpl="107">Check</th></tr></thead><tbody data-dc-tpl="108"><tr data-dc-tpl="109"><td data-dc-tpl="110">1</td><td data-dc-tpl="111">Heat phase A to 75 °C with stirring</td><td data-dc-tpl="112">75 ± 2 °C</td><td data-dc-tpl="113">Temperature log</td></tr><tr data-dc-tpl="114"><td data-dc-tpl="115">2</td><td data-dc-tpl="116">Melt phase B at 75 °C, add to A under homogeniser</td><td data-dc-tpl="117">3000 rpm, 10 min</td><td data-dc-tpl="118">Visual: uniform emulsion</td></tr><tr data-dc-tpl="119"><td data-dc-tpl="120">3</td><td data-dc-tpl="121">Cool to 40 °C</td><td data-dc-tpl="122">≤ 40 °C</td><td data-dc-tpl="123">Temperature log</td></tr><tr data-dc-tpl="124"><td data-dc-tpl="125">4</td><td data-dc-tpl="126">Add phase C under nitrogen; protect from light</td><td data-dc-tpl="127">≤ 40 °C, N₂ blanket</td><td data-dc-tpl="128">Retinol assay at release</td></tr><tr data-dc-tpl="129"><td data-dc-tpl="130">5</td><td data-dc-tpl="131">Adjust pH, fill</td><td data-dc-tpl="132">pH 5.5–6.0</td><td data-dc-tpl="133">In-process QC</td></tr></tbody></table></div></section></div><div data-dc-tpl="134" style="flex: 1 1 380px; min-width: 0px; display: flex; flex-direction: column; gap: 20px;"><section data-dc-tpl="135" class="card"><div data-dc-tpl="136" style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;"><h2 data-dc-tpl="137" style="flex-grow: 1;">Tech transfer to CMO</h2></div><table data-dc-tpl="138" class="kt"><tbody data-dc-tpl="139"><tr data-dc-tpl="140"><td data-dc-tpl="141">CMO</td><td data-dc-tpl="142">Northfield Contract Manufacturing (UK)</td></tr><tr data-dc-tpl="143"><td data-dc-tpl="144">Scale-up</td><td data-dc-tpl="145">Lab 2 kg › pilot 50 kg › production 500 kg</td></tr><tr data-dc-tpl="146"><td data-dc-tpl="147">Pilot batch</td><td data-dc-tpl="148">P-2611, 50 kg: <span data-dc-tpl="149" class="st"><span data-dc-tpl="150" class="dot g"></span>Passed</span></td></tr><tr data-dc-tpl="151"><td data-dc-tpl="152">First production batch</td><td data-dc-tpl="153">Planned 10/Feb/2027</td></tr><tr data-dc-tpl="154"><td data-dc-tpl="155">Validated process (CSV)</td><td data-dc-tpl="156">Not required: cosmetic, not OTC</td></tr></tbody></table></section><section data-dc-tpl="157" class="card"><div data-dc-tpl="158" style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;"><h2 data-dc-tpl="159" style="flex-grow: 1;">CMO dossier exchange</h2></div><div data-dc-tpl="160" style="overflow-x: auto;"><table data-dc-tpl="161" class="tbl"><thead data-dc-tpl="162"><tr data-dc-tpl="163"><th data-dc-tpl="164">Document</th><th data-dc-tpl="165">From</th><th data-dc-tpl="166">Status</th></tr></thead><tbody data-dc-tpl="167"><tr data-dc-tpl="168"><td data-dc-tpl="169">Recipe and process spec</td><td data-dc-tpl="170">TBG</td><td data-dc-tpl="171"><span data-dc-tpl="172" class="st"><span data-dc-tpl="173" class="dot g"></span>Shared</span></td></tr><tr data-dc-tpl="174"><td data-dc-tpl="175">Release specification</td><td data-dc-tpl="176">TBG</td><td data-dc-tpl="177"><span data-dc-tpl="178" class="st"><span data-dc-tpl="179" class="dot g"></span>Shared</span></td></tr><tr data-dc-tpl="180"><td data-dc-tpl="181">Equipment and batch record template</td><td data-dc-tpl="182">CMO</td><td data-dc-tpl="183"><span data-dc-tpl="184" class="st"><span data-dc-tpl="185" class="dot g"></span>Received</span></td></tr><tr data-dc-tpl="186"><td data-dc-tpl="187">Pilot batch record P-2611</td><td data-dc-tpl="188">CMO</td><td data-dc-tpl="189"><span data-dc-tpl="190" class="st"><span data-dc-tpl="191" class="dot g"></span>Approved</span></td></tr><tr data-dc-tpl="192"><td data-dc-tpl="193">Process validation report</td><td data-dc-tpl="194">CMO</td><td data-dc-tpl="195"><span data-dc-tpl="196" class="st"><span data-dc-tpl="197" class="dot y"></span>Due 03/Feb/2027</span></td></tr></tbody></table></div></section></div></div></main></div></div></div>
+
+
+
+</body></html>
